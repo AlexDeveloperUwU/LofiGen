@@ -7,17 +7,17 @@ from downloader import TidalDownloader
 from history import HistoryManager
 from mixer import AudioMixer
 from tidal_client import TidalClient
+from uploader import SFTPUploader
 
 
 def cleanup_processed_directory():
-    """Wipes the temporary processing directory to save space, but leaves downloads intact."""
     logging.info("Cleaning up temporary processing files...")
 
     if os.path.exists(Config.PROCESSED_MUSIC_DIR):
         try:
             shutil.rmtree(Config.PROCESSED_MUSIC_DIR)
             os.makedirs(Config.PROCESSED_MUSIC_DIR, exist_ok=True)
-            logging.info(f"Successfully purged processing cache.")
+            logging.info("Successfully purged processing cache.")
         except Exception as e:
             logging.error(
                 f"Failed to clean directory {Config.PROCESSED_MUSIC_DIR}: {e}"
@@ -47,6 +47,10 @@ def main():
 
         mixer = AudioMixer(history_manager)
         mixer.generate_mix()
+
+        if os.path.exists(Config.OUTPUT_MIX_PATH):
+            uploader = SFTPUploader()
+            uploader.upload(Config.OUTPUT_MIX_PATH)
 
         cleanup_processed_directory()
         logging.info("--- Execution Finished ---")

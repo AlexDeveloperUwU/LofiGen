@@ -16,6 +16,7 @@ logging.basicConfig(
 class Config:
     HA_HOSTNAME: str = os.getenv("HA_HOSTNAME", "homecore")
     HA_USER: str = os.getenv("HA_USER", "root")
+    HA_PASSWORD: str = os.getenv("HA_PASSWORD", "")
     HA_PATH: str = os.getenv("HA_PATH", "/ha/media/LoFi.mp3")
 
     SESSION_FILE: str = os.getenv("TIDAL_SESSION_FILE", "./data/tidal_session.json")
