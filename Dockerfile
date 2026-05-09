@@ -4,7 +4,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-RUN useradd --create-home --shell /bin/bash appuser
+RUN useradd --uid 1000 --create-home --shell /bin/bash appuser
 
 WORKDIR /app
 
