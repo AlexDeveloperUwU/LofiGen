@@ -71,7 +71,9 @@ class AudioMixer:
 
     def _process_single_track(self, args):
         input_path, duration, file_name = args
-        output_path = os.path.join(Config.PROCESSED_MUSIC_DIR, file_name)
+
+        processed_file_name = file_name.rsplit(".", 1)[0] + ".mp3"
+        output_path = os.path.join(Config.PROCESSED_MUSIC_DIR, processed_file_name)
 
         if os.path.exists(output_path):
             return output_path
@@ -91,7 +93,7 @@ class AudioMixer:
             "-af",
             audio_filter,
             "-c:a",
-            "aac",
+            "libmp3lame",
             "-b:a",
             "96k",
             "-ar",
@@ -101,7 +103,7 @@ class AudioMixer:
 
         try:
             subprocess.run(cmd, check=True)
-            logging.info(f"Processed (Normalized + Fades): {file_name}")
+            logging.info(f"Processed: {processed_file_name}")
             return output_path
         except subprocess.CalledProcessError as e:
             logging.error(f"Failed to process {file_name}: {e}")
@@ -130,7 +132,7 @@ class AudioMixer:
         random.shuffle(pool)
         selected_tracks = self.select_optimal_tracks(pool)
 
-        logging.info("Applying normalization, fades, and encoding in parallel...")
+        logging.info("Applying normalization, fades, and encoding to MP3...")
         processed_paths = []
 
         with ThreadPoolExecutor(max_workers=4) as executor:
@@ -138,7 +140,7 @@ class AudioMixer:
             processed_paths = [res for res in results if res is not None]
 
         if not processed_paths:
-            logging.error("No tracks were successfully processed. Aborting mix.")
+            logging.error("No tracks successfully processed.")
             return
 
         used_track_ids = []
@@ -157,7 +159,12 @@ class AudioMixer:
                 safe_path = os.path.abspath(track_path).replace("'", "'\\''")
                 concat_file.write(f"file '{safe_path}'\n")
 
-        logging.info("Merging processed tracks instantly with FFmpeg copy...")
+        logging.info("Merging processed tracks...")
+
+        output_path = Config.OUTPUT_MIX_PATH
+        if not output_path.endswith(".mp3"):
+            output_path = output_path.rsplit(".", 1)[0] + ".mp3"
+
         cmd = [
             "ffmpeg",
             "-y",
@@ -171,12 +178,12 @@ class AudioMixer:
             concat_file_path,
             "-c",
             "copy",
-            Config.OUTPUT_MIX_PATH,
+            output_path,
         ]
 
         try:
             subprocess.run(cmd, check=True)
-            logging.info(f"Mix generated successfully at: {Config.OUTPUT_MIX_PATH}")
+            logging.info(f"Mix generated at: {output_path}")
             self.history.mark_as_played(used_track_ids)
         except subprocess.CalledProcessError as e:
             logging.error(f"FFmpeg failed to merge the mix: {e}")

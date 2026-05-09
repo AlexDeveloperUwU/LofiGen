@@ -16,14 +16,14 @@ logging.basicConfig(
 class Config:
     HA_HOSTNAME: str = os.getenv("HA_HOSTNAME", "homecore")
     HA_USER: str = os.getenv("HA_USER", "root")
-    HA_PATH: str = os.getenv("HA_PATH", "/ha/media/LoFi.m4a")
+    HA_PATH: str = os.getenv("HA_PATH", "/ha/media/LoFi.mp3")
 
     SESSION_FILE: str = os.getenv("TIDAL_SESSION_FILE", "./data/tidal_session.json")
     HISTORY_FILE: str = os.getenv("HISTORY_FILE", "./data/play_history.json")
 
     LOCAL_MUSIC_DIR: str = os.getenv("LOCAL_MUSIC_DIR", "./data/downloads")
     PROCESSED_MUSIC_DIR: str = os.getenv("PROCESSED_MUSIC_DIR", "./data/processed")
-    OUTPUT_MIX_PATH: str = os.getenv("OUTPUT_MIX_PATH", "./data/output/LoFi.m4a")
+    OUTPUT_MIX_PATH: str = os.getenv("OUTPUT_MIX_PATH", "./data/output/LoFi.mp3")
 
     DOWNLOAD_MAX: int = int(os.getenv("TIDAL_DOWNLOAD_MAX", "50"))
     DURATION_HOURS: float = float(os.getenv("DURATION_HOURS", "4.0"))

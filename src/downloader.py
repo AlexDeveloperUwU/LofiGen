@@ -31,7 +31,7 @@ class TidalDownloader:
             ]
 
             if Config.DOWNLOAD_MAX > 0 and len(local_files) >= Config.DOWNLOAD_MAX:
-                num_to_remove = max(1, int(Config.DOWNLOAD_MAX * 0.40))
+                num_to_remove = max(1, int(Config.DOWNLOAD_MAX * 0.25))
                 to_remove = random.sample(local_files, num_to_remove)
 
                 for f in to_remove:
