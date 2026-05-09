@@ -1,6 +1,7 @@
 import logging
 import os
 import random
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
@@ -110,27 +111,37 @@ class TidalDownloader:
         if os.path.exists(file_path):
             return True
 
-        try:
-            stream_url = track.get_url()
-            if not stream_url:
-                logging.warning(f"No stream URL available for {file_name}. Skipping.")
-                return False
+        for attempt in range(4):
+            try:
+                stream_url = track.get_url()
+                if not stream_url:
+                    logging.warning(f"No stream URL for {file_name}. Skipping.")
+                    return False
 
-            response = requests.get(stream_url, stream=True, timeout=15)
-            response.raise_for_status()
+                response = requests.get(stream_url, stream=True, timeout=15)
+                response.raise_for_status()
 
-            with open(file_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            logging.info(f"Downloaded (96kbps): {file_name}")
-            return True
-        except Exception as e:
-            logging.error(f"Failed to download {track.name}: {e}")
-            if os.path.exists(file_path):
-                os.remove(file_path)
-            return False
+                with open(file_path, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                logging.info(f"Downloaded (96kbps): {file_name}")
+                return True
+            except Exception as e:
+                if "429" in str(e) and attempt < 3:
+                    wait = 5 * (2**attempt)
+                    logging.warning(
+                        f"Rate limited on {track.name}, retrying in {wait}s..."
+                    )
+                    time.sleep(wait)
+                else:
+                    logging.error(f"Failed to download {track.name}: {e}")
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                    return False
+
+        return False
 
     def _download_tracks_parallel(self, selected_tracks: list):
         logging.info("Fetching missing tracks in parallel...")
-        with ThreadPoolExecutor(max_workers=8) as executor:
+        with ThreadPoolExecutor(max_workers=2) as executor:
             executor.map(self._download_single_track, selected_tracks)
