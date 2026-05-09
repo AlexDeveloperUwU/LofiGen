@@ -1,0 +1,12 @@
+[project]
+name = "lofigen"
+version = "0.1.0"
+description = "A simple project to generate LoFi Mixes"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "paramiko>=4.0.0",
+    "pydub>=0.25.1",
+    "python-dotenv>=1.2.2",
+    "tidalapi>=0.8.11",
+]
