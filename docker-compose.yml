@@ -1,5 +1,6 @@
 services:
   lofigen:
+    container_name: lofigen
     build: .
     restart: unless-stopped
     env_file:

@@ -17,6 +17,9 @@ Generate fresh, ready-to-play lofi mixes on demand or on a schedule. Perfect for
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Usage](#usage)
+  - [Docker (Recommended)](#docker-recommended)
+  - [Run Once](#run-once-no-docker)
+  - [Daemon Mode](#daemon-mode-no-docker)
 - [Examples & Use Cases](#examples--use-cases)
 - [How It Works](#how-it-works)
 - [Project Structure](#project-structure)
@@ -276,19 +279,60 @@ DURATION_HOURS=4                    # 4-hour mix (24 for daily)
 
 ## 🎮 Usage
 
-### Basic Run
+### Docker (Recommended)
+
+The easiest way to run LofiGen permanently — no Python or FFmpeg setup needed on the host.
 
 ```bash
-# Run once (generates mix and uploads to HA)
+# 1. Clone the repo
+git clone https://github.com/AlexDeveloperUwU/LofiGen
+cd LofiGen
+
+# 2. Add your cover art (optional)
+cp your-cover.jpg assets/cover.jpg
+
+# 3. Configure
+cp .env.example .env
+nano .env  # fill in Tidal playlists + Home Assistant credentials
+
+# 4. Start (runs immediately, then every day at DAEMON_RUN_AT)
+docker compose up -d
+```
+
+**First run:** Tidal will ask you to authorize via a link printed in the logs. Open it once:
+
+```bash
+docker compose logs -f
+# → Visit https://tidal.com/activate?code=XXXX
+# Authorize, then the pipeline starts automatically.
+```
+
+**Useful commands:**
+
+```bash
+docker compose logs -f          # Follow logs
+docker compose restart          # Restart the container
+docker compose down             # Stop
+docker compose up -d --build    # Rebuild after code changes
+```
+
+All state (downloads, session, history, output) persists in `./data/` on your host.
+
+---
+
+### Run Once (no Docker)
+
+```bash
 uv run python src/main.py
 ```
 
-### Run with Logging
+### Daemon Mode (no Docker)
 
 ```bash
-# Verbose output
-uv run python src/main.py --verbose
+uv run python src/main.py --daemon
 ```
+
+Runs the pipeline immediately, then repeats daily at the time set by `DAEMON_RUN_AT` in `.env`.
 
 ### Schedule with Cron
 
