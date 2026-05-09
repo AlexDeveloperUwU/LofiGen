@@ -239,6 +239,7 @@ cp .env.example .env
 | **COVER_ART_PATH** | Path | ❌ | `./assets/cover.jpg` | Cover image embedded in the output MP3 |
 | **DAEMON_RUN_AT** | Time | ❌ | `03:00` | Daily run time in `HH:MM` format (local time per `TZ`) |
 | **TZ** | String | ❌ | `UTC` | Container timezone (e.g. `Europe/Madrid`) |
+| **TIDAL_SEQUENTIAL** | Boolean | ❌ | `false` | Download tracks one at a time — prevents Tidal 429 rate limiting |
 
 ### Complete Example
 
@@ -262,6 +263,12 @@ HA_PATH=/ha/media/LoFi.mp3
 
 # === Mix Parameters ===
 DURATION_HOURS=4                    # 4-hour mix (24 for daily)
+
+# === Daemon / Docker ===
+DAEMON_RUN_AT=20:30
+TZ=Europe/Madrid
+COVER_ART_PATH=./assets/cover.jpg
+TIDAL_SEQUENTIAL=true               # Recommended: avoids Tidal rate limiting
 ```
 
 ### Finding Your Tidal Playlist IDs
@@ -434,7 +441,8 @@ TIDAL_DOWNLOAD_MAX=5
               │
 ┌─────────────▼───────────────────────────────────────┐
 │ 2. DOWNLOAD TRACKS                                  │
-│    → Fetch from Tidal playlists (parallel, 8x)     │
+│    → Fetch from Tidal playlists                    │
+│    → Sequential (recommended) or parallel (2x)    │
 │    → Skip already cached tracks                    │
 │    → Rotate cache (keep fresh)                     │
 │    → Filter by 7-day play history                  │
@@ -471,7 +479,9 @@ TIDAL_DOWNLOAD_MAX=5
 - **Flow:** On first run, user authorizes via web link; credentials cached for future runs
 
 #### 📥 Smart Download System (`downloader.py`)
-- **Parallel Downloads:** 8 concurrent worker threads
+- **Sequential mode** (`TIDAL_SEQUENTIAL=true`, recommended): one download at a time with a random 0.5–1.5s gap — reliably avoids Tidal rate limiting
+- **Parallel mode** (`TIDAL_SEQUENTIAL=false`): 2 concurrent workers for faster downloads when rate limiting isn't a concern
+- **Rate limit handling:** `TooManyRequests` is caught specifically with 10s/20s/40s backoff; other transient errors retry with 5s/10s/20s backoff; HTTP-level errors use `requests.adapters.Retry` with exponential backoff
 - **Track Deduplication:** Checks local cache before downloading
 - **Cache Rotation:** When cache reaches `TIDAL_DOWNLOAD_MAX` per playlist, removes oldest 25% of tracks
 - **History Filtering:** Skips any tracks played in past 7 days

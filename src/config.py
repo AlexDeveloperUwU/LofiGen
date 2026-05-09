@@ -31,6 +31,7 @@ class Config:
 
     COVER_ART_PATH: str = os.getenv("COVER_ART_PATH", "./assets/cover.jpg")
     DAEMON_RUN_AT: str = os.getenv("DAEMON_RUN_AT", "03:00")
+    TIDAL_SEQUENTIAL: bool = os.getenv("TIDAL_SEQUENTIAL", "false").lower() == "true"
 
     @staticmethod
     def get_playlists() -> dict:

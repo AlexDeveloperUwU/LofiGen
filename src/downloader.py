@@ -6,9 +6,13 @@ from concurrent.futures import ThreadPoolExecutor
 
 import requests
 import tidalapi
+from requests.adapters import HTTPAdapter, Retry
+from tidalapi.exceptions import TooManyRequests
 
 from config import Config
 from history import HistoryManager
+
+_HTTP_RETRY = Retry(total=5, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
 
 
 class TidalDownloader:
@@ -44,7 +48,7 @@ class TidalDownloader:
 
             current_local_ids = []
             for f in local_files:
-                remainder = f[len(prefix) :]
+                remainder = f[len(prefix):]
                 track_id = remainder.split("_")[0]
                 if track_id.isdigit():
                     current_local_ids.append(track_id)
@@ -100,7 +104,7 @@ class TidalDownloader:
                 logging.error(f"Failed to process playlist {playlist_name}: {e}")
 
         if selected_tracks:
-            self._download_tracks_parallel(selected_tracks)
+            self._download_tracks(selected_tracks)
         else:
             logging.info("No new tracks needed. Cache is fully up to date.")
 
@@ -118,30 +122,47 @@ class TidalDownloader:
                     logging.warning(f"No stream URL for {file_name}. Skipping.")
                     return False
 
-                response = requests.get(stream_url, stream=True, timeout=15)
-                response.raise_for_status()
+                with requests.Session() as s:
+                    s.mount("https://", HTTPAdapter(max_retries=_HTTP_RETRY))
+                    response = s.get(stream_url, stream=True, timeout=30)
+                    response.raise_for_status()
+                    with open(file_path, "wb") as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            f.write(chunk)
 
-                with open(file_path, "wb") as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
                 logging.info(f"Downloaded (96kbps): {file_name}")
                 return True
+
+            except TooManyRequests:
+                wait = 10 * (2 ** attempt)  # 10s, 20s, 40s
+                logging.warning(f"Rate limited on {track.name}, waiting {wait}s...")
+                time.sleep(wait)
+
             except Exception as e:
-                if "429" in str(e) and attempt < 3:
-                    wait = 5 * (2**attempt)
+                if attempt < 3:
+                    wait = 5 * (2 ** attempt)  # 5s, 10s, 20s
                     logging.warning(
-                        f"Rate limited on {track.name}, retrying in {wait}s..."
+                        f"Attempt {attempt + 1}/4 failed for {track.name} ({e}), retrying in {wait}s..."
                     )
                     time.sleep(wait)
                 else:
-                    logging.error(f"Failed to download {track.name}: {e}")
+                    logging.error(f"Failed to download {track.name} after 4 attempts: {e}")
                     if os.path.exists(file_path):
                         os.remove(file_path)
                     return False
 
+        logging.error(f"Failed to download {track.name} after 4 attempts: rate limited.")
+        if os.path.exists(file_path):
+            os.remove(file_path)
         return False
 
-    def _download_tracks_parallel(self, selected_tracks: list):
-        logging.info("Fetching missing tracks in parallel...")
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            executor.map(self._download_single_track, selected_tracks)
+    def _download_tracks(self, selected_tracks: list):
+        if Config.TIDAL_SEQUENTIAL:
+            logging.info("Fetching missing tracks sequentially...")
+            for args in selected_tracks:
+                self._download_single_track(args)
+                time.sleep(random.uniform(0.5, 1.5))
+        else:
+            logging.info("Fetching missing tracks in parallel...")
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                executor.map(self._download_single_track, selected_tracks)
