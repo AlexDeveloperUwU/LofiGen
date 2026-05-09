@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from datetime import datetime
 
@@ -13,10 +14,10 @@ class TidalClient:
 
     def authenticate(self) -> bool:
         if os.path.exists(Config.SESSION_FILE):
-            print("[Info] Loading saved Tidal session...")
+            logging.info("Loading saved Tidal session...")
             if self._load_saved_session():
                 return True
-            print("[Warning] Saved session invalid or expired. Re-authenticating...")
+            logging.warning("Saved session invalid or expired. Re-authenticating...")
 
         return self._authenticate_new_session()
 
@@ -37,15 +38,15 @@ class TidalClient:
             )
             return self.session.check_login()
         except Exception as e:
-            print(f"[Error] Failed to load saved session: {e}")
+            logging.error(f"Failed to load saved session: {e}")
             return False
 
     def _authenticate_new_session(self) -> bool:
-        print("[Info] Starting new Tidal authentication...")
+        logging.info("Starting new Tidal authentication...")
         self.session.login_oauth_simple()
 
         if self.session.check_login():
-            print("[Success] Login successful! Saving session...")
+            logging.info("Login successful! Saving session...")
 
             expiry = getattr(self.session, "expiry_time", None)
 

@@ -1,30 +1,58 @@
+import logging
+import os
+import shutil
+
 from config import Config
 from downloader import TidalDownloader
+from history import HistoryManager
+from mixer import AudioMixer
 from tidal_client import TidalClient
 
 
+def cleanup_processed_directory():
+    """Wipes the temporary processing directory to save space, but leaves downloads intact."""
+    logging.info("Cleaning up temporary processing files...")
+
+    if os.path.exists(Config.PROCESSED_MUSIC_DIR):
+        try:
+            shutil.rmtree(Config.PROCESSED_MUSIC_DIR)
+            os.makedirs(Config.PROCESSED_MUSIC_DIR, exist_ok=True)
+            logging.info(f"Successfully purged processing cache.")
+        except Exception as e:
+            logging.error(
+                f"Failed to clean directory {Config.PROCESSED_MUSIC_DIR}: {e}"
+            )
+
+
 def main():
-    print("--- LofiGen Initialization ---")
+    logging.info("--- LofiGen Initialization ---")
 
     Config.initialize_directories()
 
     playlists = Config.get_playlists()
     if not playlists:
-        print("[Error] No playlists configured. Exiting.")
+        logging.error("No playlists configured. Exiting.")
         return
 
-    print(f"[Info] Loaded {len(playlists)} playlist(s) from config.")
+    logging.info(f"Loaded {len(playlists)} playlist(s) from config.")
 
     client = TidalClient()
     if client.authenticate():
-        print(f"[Success] Logged in to Tidal as: {client.session.user.id}")
+        logging.info(f"Logged in to Tidal as: {client.session.user.id}")
 
-        downloader = TidalDownloader(client.session)
+        history_manager = HistoryManager()
+
+        downloader = TidalDownloader(client.session, history_manager)
         downloader.download_playlists(playlists)
 
-        print("\n[Success] Download phase completed!")
+        mixer = AudioMixer(history_manager)
+        mixer.generate_mix()
+
+        cleanup_processed_directory()
+        logging.info("--- Execution Finished ---")
+
     else:
-        print("[Error] Could not authenticate with Tidal. Exiting.")
+        logging.error("Could not authenticate with Tidal. Exiting.")
 
 
 if __name__ == "__main__":

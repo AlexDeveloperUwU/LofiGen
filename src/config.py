@@ -1,9 +1,16 @@
 import json
+import logging
 import os
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 
 class Config:
@@ -12,11 +19,14 @@ class Config:
     HA_PATH: str = os.getenv("HA_PATH", "/ha/media/LoFi.m4a")
 
     SESSION_FILE: str = os.getenv("TIDAL_SESSION_FILE", "./data/tidal_session.json")
+    HISTORY_FILE: str = os.getenv("HISTORY_FILE", "./data/play_history.json")
 
     LOCAL_MUSIC_DIR: str = os.getenv("LOCAL_MUSIC_DIR", "./data/downloads")
+    PROCESSED_MUSIC_DIR: str = os.getenv("PROCESSED_MUSIC_DIR", "./data/processed")
     OUTPUT_MIX_PATH: str = os.getenv("OUTPUT_MIX_PATH", "./data/output/LoFi.m4a")
 
     DOWNLOAD_MAX: int = int(os.getenv("TIDAL_DOWNLOAD_MAX", "50"))
+    DURATION_HOURS: float = float(os.getenv("DURATION_HOURS", "4.0"))
 
     @staticmethod
     def get_playlists() -> dict:
@@ -24,14 +34,16 @@ class Config:
         try:
             return json.loads(playlists_raw)
         except json.JSONDecodeError:
-            print("[Error] Invalid JSON format for TIDAL_PLAYLISTS in .env")
+            logging.error("Invalid JSON format for TIDAL_PLAYLISTS in .env")
             return {}
 
     @classmethod
     def initialize_directories(cls):
         directories = [
             os.path.dirname(cls.SESSION_FILE),
+            os.path.dirname(cls.HISTORY_FILE),
             cls.LOCAL_MUSIC_DIR,
+            cls.PROCESSED_MUSIC_DIR,
             os.path.dirname(cls.OUTPUT_MIX_PATH),
         ]
 
