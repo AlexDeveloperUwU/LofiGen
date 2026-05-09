@@ -1,0 +1,9 @@
+services:
+  lofigen:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    command: ["uv", "run", "python", "src/main.py", "--daemon"]

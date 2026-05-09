@@ -233,6 +233,9 @@ cp .env.example .env
 | **HA_PASSWORD** | String | ✅ | — | SSH password |
 | **HA_PATH** | Path | ✅ | `/ha/media/LoFi.mp3` | Remote destination path on HA |
 | **DURATION_HOURS** | Float | ❌ | `4` | Target mix length in hours |
+| **COVER_ART_PATH** | Path | ❌ | `./assets/cover.jpg` | Cover image embedded in the output MP3 |
+| **DAEMON_RUN_AT** | Time | ❌ | `03:00` | Daily run time in `HH:MM` format (local time per `TZ`) |
+| **TZ** | String | ❌ | `UTC` | Container timezone (e.g. `Europe/Madrid`) |
 
 ### Complete Example
 
@@ -481,6 +484,9 @@ LofiGen/
 │   ├── tidal_session.json       # Cached auth session
 │   └── history.json             # Play history tracking
 │
+├── assets/
+│   └── cover.jpg                # Cover art embedded in the output MP3
+│                                # Source: https://cdn-images.dzcdn.net/images/cover/f5bdcb7e132d256f675a15013b8df9ef/0x1900-000000-80-0-0.jpg
 ├── .env                         # Configuration (sensitive, git-ignored)
 ├── .env.example                 # Configuration template
 ├── pyproject.toml               # Dependencies and project metadata

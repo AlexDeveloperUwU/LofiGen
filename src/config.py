@@ -29,6 +29,9 @@ class Config:
     DOWNLOAD_MAX: int = int(os.getenv("TIDAL_DOWNLOAD_MAX", "50"))
     DURATION_HOURS: float = float(os.getenv("DURATION_HOURS", "4.0"))
 
+    COVER_ART_PATH: str = os.getenv("COVER_ART_PATH", "./assets/cover.jpg")
+    DAEMON_RUN_AT: str = os.getenv("DAEMON_RUN_AT", "03:00")
+
     @staticmethod
     def get_playlists() -> dict:
         playlists_raw = os.getenv("TIDAL_PLAYLISTS", "{}")
