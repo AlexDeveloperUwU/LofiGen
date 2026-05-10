@@ -239,7 +239,12 @@ cp .env.example .env
 | **COVER_ART_PATH** | Path | ❌ | `./assets/cover.jpg` | Cover image embedded in the output MP3 |
 | **DAEMON_RUN_AT** | Time | ❌ | `03:00` | Daily run time in `HH:MM` format (local time per `TZ`) |
 | **TZ** | String | ❌ | `UTC` | Container timezone (e.g. `Europe/Madrid`) |
-| **TIDAL_SEQUENTIAL** | Boolean | ❌ | `false` | Download tracks one at a time — prevents Tidal 429 rate limiting |
+| **TIDAL_SEQUENTIAL** | Boolean | ❌ | `false` | Download tracks one at a time — strongly recommended to avoid Tidal 429s |
+| **TIDAL_RATE_LIMIT_COOLDOWN** | Integer | ❌ | `120` | Seconds all requests pause globally after any 429 response |
+| **TIDAL_INITIAL_BACKOFF** | Integer | ❌ | `30` | Seconds to wait on the first 429 retry for a track (doubles each attempt) |
+| **TIDAL_MAX_RETRIES** | Integer | ❌ | `5` | Maximum download attempts per track before giving up |
+| **TIDAL_REQUEST_DELAY_MIN** | Float | ❌ | `2.0` | Minimum seconds between sequential download attempts |
+| **TIDAL_REQUEST_DELAY_MAX** | Float | ❌ | `4.0` | Maximum seconds between sequential download attempts |
 
 ### Complete Example
 
@@ -268,7 +273,14 @@ DURATION_HOURS=4                    # 4-hour mix (24 for daily)
 DAEMON_RUN_AT=20:30
 TZ=Europe/Madrid
 COVER_ART_PATH=./assets/cover.jpg
-TIDAL_SEQUENTIAL=true               # Recommended: avoids Tidal rate limiting
+
+# === Rate Limiting (tune if you get 429 errors) ===
+TIDAL_SEQUENTIAL=true               # Strongly recommended
+TIDAL_RATE_LIMIT_COOLDOWN=120       # Global pause (seconds) after any 429
+TIDAL_INITIAL_BACKOFF=30            # First retry wait on 429 (doubles each attempt)
+TIDAL_MAX_RETRIES=5                 # Attempts per track
+TIDAL_REQUEST_DELAY_MIN=2.0         # Min gap between downloads
+TIDAL_REQUEST_DELAY_MAX=4.0         # Max gap between downloads
 ```
 
 ### Finding Your Tidal Playlist IDs
@@ -444,8 +456,10 @@ TIDAL_DOWNLOAD_MAX=5
 │    → Fetch from Tidal playlists                    │
 │    → Sequential (recommended) or parallel (2x)    │
 │    → Skip already cached tracks                    │
-│    → Rotate cache (keep fresh)                     │
 │    → Filter by 7-day play history                  │
+│    → Global 429 cooldown + per-track backoff       │
+│    → Retry failed tracks after cooldown            │
+│    → Rotate cache only after successful downloads  │
 └─────────────┬───────────────────────────────────────┘
               │
 ┌─────────────▼───────────────────────────────────────┐
@@ -479,11 +493,13 @@ TIDAL_DOWNLOAD_MAX=5
 - **Flow:** On first run, user authorizes via web link; credentials cached for future runs
 
 #### 📥 Smart Download System (`downloader.py`)
-- **Sequential mode** (`TIDAL_SEQUENTIAL=true`, recommended): one download at a time with a random 0.5–1.5s gap — reliably avoids Tidal rate limiting
-- **Parallel mode** (`TIDAL_SEQUENTIAL=false`): 2 concurrent workers for faster downloads when rate limiting isn't a concern
-- **Rate limit handling:** `TooManyRequests` is caught specifically with 10s/20s/40s backoff; other transient errors retry with 5s/10s/20s backoff; HTTP-level errors use `requests.adapters.Retry` with exponential backoff
+- **Sequential mode** (`TIDAL_SEQUENTIAL=true`, strongly recommended): one download at a time with a configurable 2–4s random gap between requests
+- **Parallel mode** (`TIDAL_SEQUENTIAL=false`): 2 concurrent workers; the global rate-limit lock still applies, but sequential is safer
+- **Global rate-limit state:** When any `TooManyRequests` (429) is received, a shared cooldown (`TIDAL_RATE_LIMIT_COOLDOWN`, default 120s) is set — all workers and sequential iterations wait before making any new request. This prevents cascading 429s across consecutive tracks
+- **Per-track backoff:** On 429, waits `TIDAL_INITIAL_BACKOFF × 2^attempt` seconds before retrying the same track (default 30s, 60s, 120s, …)
+- **Second-pass retry:** After the primary sequential pass, any tracks that failed due to rate limits are queued and retried once after a full cooldown — useful for the first run of a cold cache
+- **Download-first rotation:** When the cache is full, new tracks are downloaded first. Old tracks are only rotated out (25%, excluding new arrivals) if at least one download succeeded. If all downloads fail, the existing cache is preserved intact so the mix can still run
 - **Track Deduplication:** Checks local cache before downloading
-- **Cache Rotation:** When cache reaches `TIDAL_DOWNLOAD_MAX` per playlist, removes oldest 25% of tracks
 - **History Filtering:** Skips any tracks played in past 7 days
 - **Quality:** Downloads at 96 kbps (low bandwidth, good quality)
 
@@ -616,7 +632,7 @@ Each module is independent and testable:
    - Balances API calls with variety
 
 3. **Parallel Processing**
-   - 8 concurrent downloads
+   - 2 concurrent downloads (parallel mode) or 1 at a time (sequential mode, recommended)
    - 4 concurrent audio encoders
    - Significant speed improvement for large mixes
 
@@ -639,18 +655,20 @@ Each module is independent and testable:
 
 ### Optimizing Downloads
 
-**Tune Parallel Workers:**
-```python
-# In downloader.py, modify MAX_WORKERS
-MAX_WORKERS = 12  # Default is 8, increase for faster downloads
+**Use sequential mode with conservative delays (strongly recommended):**
+```env
+TIDAL_SEQUENTIAL=true
+TIDAL_REQUEST_DELAY_MIN=2.0
+TIDAL_REQUEST_DELAY_MAX=4.0
+TIDAL_RATE_LIMIT_COOLDOWN=120
 ```
 
 **Increase Cache Size:**
 ```env
-TIDAL_DOWNLOAD_MAX=5  # Keep more tracks, fewer downloads needed
+TIDAL_DOWNLOAD_MAX=500  # Keep more tracks, fewer downloads needed per run
 ```
 
-**Tip:** Higher cache = less frequent Tidal API calls, but more local storage.
+**Tip:** Higher cache = less frequent Tidal API calls per run, but more local storage.
 
 ---
 
@@ -705,6 +723,30 @@ scp ./data/output/LoFi.mp3 root@192.168.1.100:/ha/media/
 ---
 
 ## 🔧 Troubleshooting
+
+### Tidal Rate Limiting (429 errors)
+
+**Problem:** Many tracks log `Rate limited on … waiting Xs` and some fail entirely.
+
+**Solutions:**
+
+1. **Enable sequential mode** (most important):
+   ```env
+   TIDAL_SEQUENTIAL=true
+   ```
+2. **Increase the global cooldown** if 429s persist after the default 120s:
+   ```env
+   TIDAL_RATE_LIMIT_COOLDOWN=180
+   TIDAL_INITIAL_BACKOFF=60
+   ```
+3. **Increase inter-request delay:**
+   ```env
+   TIDAL_REQUEST_DELAY_MIN=3.0
+   TIDAL_REQUEST_DELAY_MAX=6.0
+   ```
+4. **Check logs for the second-pass retry:** tracks that fail the first pass are automatically retried after the cooldown. If they still fail, the existing cache is preserved and used for the mix.
+
+---
 
 ### Tidal Authentication Fails
 

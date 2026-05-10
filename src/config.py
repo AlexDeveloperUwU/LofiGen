@@ -33,6 +33,12 @@ class Config:
     DAEMON_RUN_AT: str = os.getenv("DAEMON_RUN_AT", "03:00")
     TIDAL_SEQUENTIAL: bool = os.getenv("TIDAL_SEQUENTIAL", "false").lower() == "true"
 
+    RATE_LIMIT_COOLDOWN: int = int(os.getenv("TIDAL_RATE_LIMIT_COOLDOWN", "120"))
+    INITIAL_BACKOFF: int = int(os.getenv("TIDAL_INITIAL_BACKOFF", "30"))
+    MAX_RETRIES: int = int(os.getenv("TIDAL_MAX_RETRIES", "5"))
+    REQUEST_DELAY_MIN: float = float(os.getenv("TIDAL_REQUEST_DELAY_MIN", "2.0"))
+    REQUEST_DELAY_MAX: float = float(os.getenv("TIDAL_REQUEST_DELAY_MAX", "4.0"))
+
     @staticmethod
     def get_playlists() -> dict:
         playlists_raw = os.getenv("TIDAL_PLAYLISTS", "{}")
